@@ -11,79 +11,6 @@ from pyspark.sql.window import Window, WindowSpec
 from constants import FIRST_FLIGHT_DATE_A400M
 
 
-def select_relevant_columns(df, relevant_columns):
-    """
-    Selects the final columns.
-    >>> spark = getfixture('spark')
-    >>> test_df = spark.createDataFrame([
-    ...     Row(col1='1', col2='A', col3=1),
-    ...     Row(col1='1', col2='A', col3=2),
-    ... ])
-    >>> relevant_columns = ['col1', 'col2']
-    >>> select_relevant_columns(test_df, relevant_columns).show()
-    +----+----+
-    |col1|col2|
-    +----+----+
-    |   1|   A|
-    |   1|   A|
-    +----+----+
-    <BLANKLINE>
-    """
-    return df.select(relevant_columns)
-
-
-def select_distinct_rows_of_relevant_columns(df, relevant_columns):
-    """
-    Select a final set of columns.
-
-    >>> spark = getfixture('spark')
-    >>> test_df = spark.createDataFrame([
-    ...     Row(col1='1', col2='A', col3=1),
-    ...     Row(col1='1', col2='A', col3=2),
-    ... ])
-    >>> relevant_columns = ['col1', 'col2']
-    >>> select_distinct_rows_of_relevant_columns(test_df, relevant_columns).show()
-    +----+----+
-    |col1|col2|
-    +----+----+
-    |   1|   A|
-    +----+----+
-    <BLANKLINE>
-    """
-    return df.select(relevant_columns).distinct()
-
-
-def create_unique_hash_id_column(
-    df: DataFrame, id_column_name: str, hash_column_list: list[str]
-) -> DataFrame:
-    """
-    This functions adds a new id-column to a dataframe.
-    * id_column_name: name of new id-column
-    * hash_column_list: list of columns from which a hash is created
-
-    Doctest: see create_id_column
-    """
-    return create_id_column(df, id_column_name, hash_column_list, apply_hash=True)
-
-
-def obtain_date_from_timestamp(df: DataFrame, timestamp_column: str) -> DataFrame:
-    """
-    This function obtains the date from a given timestamp_column and adds it as new column.
-
-    >>> spark = getfixture('spark')
-    >>> df = spark.createDataFrame([Row(id=1, timestamp=datetime.datetime(2020, 1, 1, 12, 0))])
-    >>> timestamp_column = 'timestamp'
-    >>> obtain_date_from_timestamp(df, timestamp_column).show(truncate=False)
-    +---+-------------------+----------+
-    |id |timestamp          |date      |
-    +---+-------------------+----------+
-    |1  |2020-01-01 12:00:00|2020-01-01|
-    +---+-------------------+----------+
-    <BLANKLINE>
-    """
-    return df.withColumn("date", F.to_date(F.col(timestamp_column)))
-
-
 def filter_by_column_values(
     df: DataFrame, col_names_filters: dict[str, list]
 ) -> DataFrame:
@@ -375,83 +302,6 @@ def create_id_column(
     return df.withColumn(id_column_name, F.concat_ws(sep, *column_list))
 
 
-def drop_duplicates_from_list_of_columns(
-    df: DataFrame, column_name_list: list[str]
-) -> DataFrame:
-    """
-    This function drops all rows where the entries in the column_name_list are the same.
-
-    >>> spark = getfixture('spark')
-    >>> df = spark.createDataFrame([
-    ...     Row(column_1='id1', column_2='a'),
-    ...     Row(column_1='id1', column_2='b'),
-    ...     Row(column_1='id2', column_2='a'),
-    ...     Row(column_1='id2', column_2='a'),
-    ...     Row(column_1='id2', column_2='c'),
-    ...     Row(column_1='id3', column_2='c'),
-    ...     Row(column_1='id3', column_2='a'),
-    ... ])
-    >>> drop_duplicates_from_list_of_columns(df, ['column_1']).show(truncate=False)
-    +--------+--------+
-    |column_1|column_2|
-    +--------+--------+
-    |id1     |a       |
-    |id2     |a       |
-    |id3     |c       |
-    +--------+--------+
-    <BLANKLINE>
-    """
-    return df.dropDuplicates(column_name_list)
-
-
-def create_new_column_from_column_mapping(
-    df: DataFrame,
-    reference_column: str,
-    mapping_dict: dict[str, str],
-    new_column_name: str,
-) -> DataFrame:
-    """
-    This function maps the values from the reference_column to a new column according to the mapping_dict.
-
-    >>> spark = getfixture('spark')
-    >>> df = spark.createDataFrame([
-    ...     Row(column_1='value1'),
-    ...     Row(column_1='value2'),
-    ... ])
-    >>> mapping_dict = pfr_fault_code_gofibi_mapping_dict = {'value1': 'new_value1', 'value2': 'new_value2' }
-    >>> mapping_dict2 = pfr_fault_code_gofibi_mapping_dict = {'value1': ['new_value1', 'new_value2'], 'value2': ['new_value2'] }
-    >>> create_new_column_from_column_mapping(df,'column_1', mapping_dict, 'new_column').show(truncate=False)
-    +--------+----------+
-    |column_1|new_column|
-    +--------+----------+
-    |value1  |new_value1|
-    |value2  |new_value2|
-    +--------+----------+
-    <BLANKLINE>
-    >>> create_new_column_from_column_mapping(df,'column_1', mapping_dict2, 'new_column').show(truncate=False)
-    +--------+------------------------+
-    |column_1|new_column              |
-    +--------+------------------------+
-    |value1  |[new_value1, new_value2]|
-    |value2  |[new_value2]            |
-    +--------+------------------------+
-    <BLANKLINE>
-    """
-    mapping_list = [
-        (F.lit(key), value_to_literal(val)) for key, val in mapping_dict.items()
-    ]
-    chained_mapping_list = [item for map_tuple in mapping_list for item in map_tuple]
-    mapping_expr = F.create_map(*chained_mapping_list)
-    return df.withColumn(new_column_name, mapping_expr[F.col(reference_column)])
-
-
-def value_to_literal(val):
-    if isinstance(val, list):
-        return F.array(*[F.lit(x) for x in val])
-
-    return F.lit(val)
-
-
 def replace_none_by_preceding_value(
     df: DataFrame, col_name: str, window: WindowSpec
 ) -> DataFrame:
@@ -543,26 +393,6 @@ def replace_values(
     return df.replace(old_value_list, new_value_list, column_name)
 
 
-def remove_na_values(df: DataFrame, column_list: list[str]) -> DataFrame:
-    """
-    This method determines removes all rows where one of the specified columns is null.
-
-    >>> spark = getfixture('spark')
-    >>> df = spark.createDataFrame([
-    ...     Row(col_1='foo',  col_2='bar'),
-    ...     Row(col_1='jane', col_2=None),
-    ... ])
-    >>> remove_na_values(df, ['col_2']).show()
-    +-----+-----+
-    |col_1|col_2|
-    +-----+-----+
-    |  foo|  bar|
-    +-----+-----+
-    <BLANKLINE>
-    """
-    return df.na.drop(subset=column_list)
-
-
 def create_new_column_from_varying_columns(
     df: DataFrame, dependend_column: str, mapping_dict_dict: dict[str, dict[str, str]]
 ) -> DataFrame:
@@ -596,42 +426,6 @@ def create_new_column_from_varying_columns(
             )
 
     return df
-
-
-def create_map_from_dataframe(
-    df: DataFrame,
-    source_column: str = "original_name",
-    target_column: str = "pseudonym",
-) -> Column:
-    """
-    Creates a mapping based on a DataFrame with two categorical columns.
-
-    Args:
-        df (DataFrame): DataFrame with two categorical columns.
-        source_column (str, optional): Name of the source column. Defaults to 'original_name'.
-        target_column (str, optional): Name of the target column. Defaults to 'pseudonym'.
-
-    Returns:
-        T.MapType: Map between values in source and target column.
-
-    >>> spark = getfixture('spark')
-    >>> df = spark.createDataFrame([
-    ...     Row(original_name='X-AAAA', pseudonym='AC-2'),
-    ...     Row(original_name='X-BBBB', pseudonym='AC-1'),
-    ... ])
-    >>> create_map_from_dataframe(df)
-    Column<'map(X-AAAA, AC-2, X-BBBB, AC-1)'>
-    """
-    return F.create_map(
-        *[
-            item
-            for sublist in [
-                (F.lit(x[0]), F.lit(x[1]))
-                for x in df.select(source_column, target_column).distinct().collect()
-            ]
-            for item in sublist
-        ]
-    )
 
 
 def keep_latest_in_partition(
@@ -700,107 +494,6 @@ def union_all_dataframe(dfs: list[DataFrame]) -> DataFrame:
     <BLANKLINE>
     """
     return reduce(DataFrame.unionByName, dfs)
-
-
-def filter_threshold(
-    df: DataFrame, col_name: str, threshold_value: float, operator: str
-):
-    """
-    Filters a DataFrame by a given threshold value for a given column.
-
-    Args:
-        df (DataFrame): DataFrame to be filtered.
-        col_name (str): Name of the column to filter.
-        operator (str): Operator used for the filter: ">", "<", ">=", "<=".
-
-    Returns:
-        df (DataFrame): DataFrame filtered
-
-    >>> spark = getfixture('spark')
-    >>> df = spark.createDataFrame([
-    ...     Row(name='X-AAAA', value=1.),
-    ...     Row(name='X-BBBB', value=2.),
-    ...     Row(name='X-BBBB', value=3.),
-    ...     Row(name='X-BBBB', value=4.),
-    ... ])
-    >>> filter_threshold(df, 'value', 1, '>').show()
-    +------+-----+
-    |  name|value|
-    +------+-----+
-    |X-BBBB|  2.0|
-    |X-BBBB|  3.0|
-    |X-BBBB|  4.0|
-    +------+-----+
-    <BLANKLINE>
-    """
-    return df.where(f"{col_name} {operator} {threshold_value}")
-
-
-def cast_columns_to_string(df: DataFrame, *, columns: list[str]) -> DataFrame:
-    """
-    >>> spark = getfixture('spark')
-    >>> schema = T.StructType([
-    ...     T.StructField('a', T.LongType()),
-    ...     T.StructField('b', T.StringType()),
-    ...     T.StructField('c', T.StringType()),
-    ...     T.StructField('d', T.LongType()),
-    ... ])
-    >>> df = spark.createDataFrame(schema=schema, data=[[1, 'foo', 'bar', 42]])
-    >>> out = cast_columns_to_string(df, columns=['a', 'b'])
-    >>> out.show()
-    +---+---+---+---+
-    |  a|  b|  c|  d|
-    +---+---+---+---+
-    |  1|foo|bar| 42|
-    +---+---+---+---+
-    <BLANKLINE>
-    >>> out.printSchema()
-    root
-     |-- a: string (nullable = true)
-     |-- b: string (nullable = true)
-     |-- c: string (nullable = true)
-     |-- d: long (nullable = true)
-    <BLANKLINE>
-    """
-    for column in columns:
-        df = df.withColumn(column, F.col(column).cast(T.StringType()))
-    return df
-
-
-def unpivot(
-    df: DataFrame, columns_to_unpivot: list[str], new_column_names: list[str]
-) -> DataFrame:
-    """
-    Unpivots a table based on the list of columns to unpivot, and the new name to be given to the columns.
-
-    >>> spark = getfixture('spark')
-    >>> df = spark.createDataFrame([
-    ...     Row(ac_tail_no='AC-1', value_category_A=1., value_category_B=2.),
-    ...     Row(ac_tail_no='AC-2', value_category_A=3., value_category_B=4.),
-    ...     Row(ac_tail_no='AC-2', value_category_A=5., value_category_B=6.),
-    ...    ])
-    >>> columns_to_unpivot = ['value_category_A', 'value_category_B']
-    >>> new_column_names = ['category', 'value']
-    >>> unpivot(df, columns_to_unpivot, new_column_names).sort('ac_tail_no', 'category', 'value').show()
-    +----------+----------------+-----+
-    |ac_tail_no|        category|value|
-    +----------+----------------+-----+
-    |      AC-1|value_category_A|  1.0|
-    |      AC-1|value_category_B|  2.0|
-    |      AC-2|value_category_A|  3.0|
-    |      AC-2|value_category_A|  5.0|
-    |      AC-2|value_category_B|  4.0|
-    |      AC-2|value_category_B|  6.0|
-    +----------+----------------+-----+
-    <BLANKLINE>
-    """
-    columns_to_unpivot_str = ",".join([f"'{c}', `{c}`" for c in columns_to_unpivot])
-    return df.select(
-        *(set(df.columns) - set(columns_to_unpivot)),
-        F.expr(
-            f"stack({len(columns_to_unpivot)}, {columns_to_unpivot_str}) ({','.join(new_column_names)})"
-        ),
-    ).filter(f"!{new_column_names[1]} is null")
 
 
 def forward_fill(
@@ -883,51 +576,6 @@ def backward_fill(
     )
 
 
-def drop_duplicates_excluding_columns_based_on_alphabetic_order(
-    df: DataFrame,
-    excluded_columns: list[str],
-    alphabetic_order_column: Optional[str] = None,
-) -> DataFrame:
-    """
-    Removes duplicate entries based on all columns except on excluded_columns.
-    For the excluded columns, the first one based on alphabetic order is the one kept.
-
-    >>> spark = getfixture('spark')
-    >>> df = spark.createDataFrame([
-    ...     Row(col1='A1', col2='B1', col3='C1', filename='file_1_v2'),
-    ...     Row(col1='A1', col2='B1', col3='C1', filename='file_1'),
-    ...     Row(col1='A1', col2='B1', col3='C2', filename='file_1_v2'),
-    ...     Row(col1='A2', col2='B2', col3='C2', filename='file_2'),
-    ...     Row(col1='A3', col2='B3', col3='C3', filename='file_3'),
-    ...     ])
-    >>> drop_duplicates_excluding_columns_based_on_alphabetic_order(df, excluded_columns=['filename'], alphabetic_order_column='filename').show()
-    +----+----+----+---------+
-    |col1|col2|col3| filename|
-    +----+----+----+---------+
-    |  A1|  B1|  C1|   file_1|
-    |  A1|  B1|  C2|file_1_v2|
-    |  A2|  B2|  C2|   file_2|
-    |  A3|  B3|  C3|   file_3|
-    +----+----+----+---------+
-    <BLANKLINE>
-    """
-    if alphabetic_order_column is None:
-        alphabetic_order_column = excluded_columns[0]
-    columns_partition = [
-        column for column in df.columns if column not in excluded_columns
-    ]
-    window_appearance_repeated = (
-        Window().partitionBy(columns_partition).orderBy(excluded_columns[0])
-    )
-    return (
-        df.withColumn(
-            "appearance_order", F.row_number().over(window_appearance_repeated)
-        )
-        .where("appearance_order==1")
-        .drop("appearance_order")
-    )
-
-
 def aggregate_sorted_set(
     df: DataFrame, group_by: list[str], col_to_collect: str
 ) -> DataFrame:
@@ -952,53 +600,91 @@ def aggregate_sorted_set(
     return df.groupBy(*group_by).agg(
         F.array_sort(F.collect_set(col_to_collect)).alias(f"{col_to_collect}_list")
     )
-def unpivot_calendar_weeks(calendar_weeks):
-
-    mapping = F.create_map(list(chain(*((F.lit(c), F.col(c)) for c in calendar_weeks.columns))))
-
-    return (calendar_weeks
-            .withColumn('map', mapping).select('id', F.explode('map'), F.col('key').alias('date'), 'value')
-            .distinct()
-            .where(F.col('date') != 'id')
-            .withColumn('failure_volume', F.col('value').cast(T.IntegerType()))
-            .drop('value', 'map', 'key')
-            )
 
 
-def fill_none_values(supplycase_component_proc):
+def fill_none_values(df):
 
-    w1 = Window.partitionBy('id').orderBy('date')
+    w1 = Window.partitionBy("col").orderBy("col")
     w2 = w1.rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
 
     cols = [
+        "",
+        "",
     ]
 
-    return (supplycase_component_proc
-            .select(
-                [c for c in supplycase_component_proc.columns if c not in cols] +
-                [F.coalesce(F.last(c, True).over(w1), F.first(c, True).over(w2)).alias(c) for c in cols]
-            )
-            )
+    return df.select(
+        [c for c in df.columns if c not in cols]
+        + [
+            F.coalesce(F.last(c, True).over(w1), F.first(c, True).over(w2)).alias(c)
+            for c in cols
+        ]
+    )
 
 
 def create_calendar_weeks_table(supplycase_component):
     min_date = supplycase_component.agg(F.min("date")).head()[0]  # noqa
     max_date = supplycase_component.agg(F.max("date")).head()[0]  # noqa
 
-    return (
-        supplycase_component.withColumn(
-            "calendar_date",
-            F.expr(
-                f"explode(sequence(to_date('{min_date}'), to_date('{max_date}'), interval 1 day))"
-            ),
-        )
-        .withColumn(
-            "calendar_week",
-            F.concat_ws(
-                "",
-                F.substring("calendar_date", 1, 4),
-                F.format_string("%02d", F.weekofyear("date")),
-            ).cast(T.IntegerType()),
-        )
+    return supplycase_component.withColumn(
+        "calendar_date",
+        F.expr(
+            f"explode(sequence(to_date('{min_date}'), to_date('{max_date}'), interval 1 day))"
+        ),
+    ).withColumn(
+        "calendar_week",
+        F.concat_ws(
+            "",
+            F.substring("calendar_date", 1, 4),
+            F.format_string("%02d", F.weekofyear("date")),
+        ).cast(T.IntegerType()),
     )
 
+
+def array_union_and_intersect(df):
+    """
+    Input DF:
+    +------------+-----------+
+    |arr1        |arr2       |
+    +------------+-----------+
+    |[a, a, b, c]|[a, d]     |
+    |[x, y]      |[i, j]     |
+    +------------+-----------+
+
+    Output DF:
+    +------------+-----------+------------+--------------+
+    |arr1        |arr2       |arr_union   |arr_intersect |
+    +------------+-----------+------------+--------------+
+    |[a, a, b, c]|[a, d]     |[a, b, c, d]|           [a]|
+    |[x, y]      |[i, j]     |[x, y, i, j]|            []|
+    +------------+-----------+------------+--------------+
+
+    *arr_union:     distinct elements in either array
+    *arr_intersect: elements in both arrays
+    """
+    return df.withColumns(
+        {
+            "arr_union": F.array_union("arr1", "arr2"),
+            "arr_intersect": F.array_intersect("arr1", "arr2"),
+        }
+    )
+
+
+def count_distinct_with_hll(df):
+    """
+    Input DF:
+    +------+------+
+    |number|letter|
+    +------+------+
+    |     1|     a|
+    |     2|     a|
+    |     3|     a|
+    |     4|     b|
+    +------+------+
+    """
+    return df.agg(
+        hll_sketch_agg("number").alias("number_hll"),
+        hll_sketch_agg("letter").alias("letters_hll"),
+    )
+
+
+def snake_case(df):
