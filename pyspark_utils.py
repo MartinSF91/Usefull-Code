@@ -687,4 +687,61 @@ def count_distinct_with_hll(df):
     )
 
 
+def with_columns_renamed(fun):
+    def _(df):
+        cols = [col(f"`{col_name}`").alias(fun(col_name)) for col_name in df.columns]
+
+
 def snake_case(df):
+    """
+    Input DF:
+    +--------------+-------------+
+    |I like CHEESE |YUMMMY stuff |
+    +--------------+-------------+
+    |jose          |a            |
+    |li            |b            |
+    |sam           |c            |
+    +--------------+-------------+
+
+    Output DF:
+    +--------------+-------------+
+    |i_like_cheese |yummmy_stuff |
+    +--------------+-------------+
+    |jose          |a            |
+    |li            |b            |
+    |sam           |c            |
+    +--------------+-------------+
+    """
+    return with_columns_renamed(lambda s: s.lower().replace(" ", "_"))(df)
+
+
+def left_anti_join(df1, df2):
+    """
+    df1:
+    +--+------+
+    |id|name  |
+    +--+------+
+    |1 |socks |
+    |2 |chips |
+    |3 |ac    |
+    |4 |tea   |
+    +--+------+
+
+    df2:
+    +--+
+    |id|
+    +--+
+    |1 |
+    |4 |
+    +--+
+
+    Output:
+    df1:
+    +--+------+
+    |id|name  |
+    +--+------+
+    |2 |chips |
+    |3 |ac    |
+    +--+------+
+    """
+    return df1.join(df2, on="id", how="leftanti")
